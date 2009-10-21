@@ -36,8 +36,8 @@ class openlockd {
 		pcntl_signal( SIGUSR1,  array( $this, 'sig_handler' ) );
 		
 		$this->sock = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-		@socket_set_option( SOL_SOCKET, SO_REUSEADDR, 1 );
-		@socket_set_option( SOL_SOCKET, SO_LINGER, array( 'l_onoff' => 1, 'l_linger' => 0 ) );
+		socket_set_option( $this->sock, SOL_SOCKET, SO_REUSEADDR, 1 );
+		socket_set_option( $this->sock, SOL_SOCKET, SO_LINGER, array( 'l_onoff' => 1, 'l_linger' => 0 ) );
 		socket_set_nonblock( $this->sock );
 		if ( !socket_bind( $this->sock, $this->lockd_addr, $this->lockd_port ) )
 			die( "Could not bind socket...\r\n" );
@@ -99,7 +99,7 @@ class openlockd {
 				socket_set_block( $c );
 				socket_set_option( $c, SOL_SOCKET, SO_KEEPALIVE, 1 );
 				socket_set_option( $c, SOL_SOCKET, SO_RCVLOWAT, 2 );
-				@socket_set_option( SOL_SOCKET, SO_LINGER, array( 'l_onoff' => 1, 'l_linger' => 0 ) );
+				socket_set_option($c, SOL_SOCKET, SO_LINGER, array( 'l_onoff' => 1, 'l_linger' => 0 ) );
 				$this->connections[] = &$c;
 			} else {
 				usleep( $this->lockd_usleep );
