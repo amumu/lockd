@@ -204,7 +204,7 @@ class openlockd {
 								$this->shares[$c][$hash] = true;
 								$this->locks[$hash]++;
 							}
-							socket_write( $c, "1 Got Lock\r\n" );
+							socket_write( $c, "{$this->locks[$hash]} Got Lock\r\n" );
 							break;
 						case 'r':
 							$this->srs++;
