@@ -261,6 +261,7 @@ class openlockd {
 				case 'q': // get system stats
 					$this->qs++;
 					socket_write( $c, print_r( array(
+						'pid'        => getmypid(),
 						'conns'      => count( $this->connections ),
 						'locks'      => count( $this->locks ),
 						'orphans'    => $this->stat_orphans,
@@ -273,7 +274,7 @@ class openlockd {
 						'command_si' => $this->sis,
 						'command_q'  => $this->qs,
 					), true ) );
-					if ( $d = 'q full' ) {
+					if ( trim($d) == 'q full' ) {
 						socket_write( $c, print_r( array(
 							'locks'  => $this->locks,
 							'shares' => $this->shares,
