@@ -24,30 +24,39 @@ class lockc {
 		return $this->connect( $try+1 );
 	}
 
-	function inspect( $string ) { return $this->is_locked( $string ); }
-	function check( $string ) { return $this->is_locked( $string ); }
-	function is_locked( $string ) {
+	function inspect( $string, $shared=false ) { return $this->is_locked( $string, $shared ); }
+	function check( $string, $shared=false ) { return $this->is_locked( $string, $shared ); }
+	function is_locked( $string, $shared=false ) {
 		if ( !$fp = $this->connect() )
 			return true;
-		fwrite( $fp, "i $string\r\n" );
+		$c = 'i';
+		if ( $shared )
+			$c = 'si';
+		fwrite( $fp, "$c $string\r\n" );
 		$rval = trim( fgets( $fp ) );
 		return intval( $rval );
 	}
 
-	function get( $string ) { return $this->lock( $string ); }
-	function lock( $string ) {
+	function get( $string, $shared=false ) { return $this->lock( $string, $shared ); }
+	function lock( $string, $shared=false ) {
 		if ( !$fp = $this->connect() )
 			return false;
-		fwrite( $fp, "g $string\r\n" );
+		$c = 'g';
+		if ( $shared )
+			$c = 'sg';
+		fwrite( $fp, "$c $string\r\n" );
 		$rval = trim( fgets( $fp ) );
 		return intval( $rval );
 	}
 
-	function release( $string ) { return $this->unlock( $string ); }
-	function unlock( $string ) {
+	function release( $string, $shared=false ) { return $this->unlock( $string, $shared ); }
+	function unlock( $string, $shared=false ) {
 		if ( !$fp = $this->connect() )
 			return false;
-		fwrite( $fp, "r $string\r\n" );
+		$c = 'r';
+		if ( $shared )
+			$c = 'sr';
+		fwrite( $fp, "$c $string\r\n" );
 		$rval = trim( fgets( $fp ) );
 		return intval( $rval );
 	}
