@@ -15,14 +15,18 @@ class openlockd {
 	var $stat_connects = 0;
 	var $stat_orphans  = 0;
 	var $stat_commands = 0;
-	var $gs = 0;
-	var $rs = 0;
-	var $is = 0;
-	var $qs = 0;
+	var $gs = 0;  // gets
+	var $rs = 0;  // releases
+	var $is = 0;  // inspects
+	var $qs = 0;  // query (stats)
+	var $sgs = 0; // shared gets
+	var $srs = 0; // shared releases
+	var $sis = 0; // shared inspects
 
 	var $answering = true;
 	var $connections = array();
 	var $locks = array();
+	var $shares = array();
 
 	function openlockd( $args=array() ) {
 		foreach ( $args as $i => $v ) {
@@ -168,15 +172,66 @@ class openlockd {
 					$this->stat_orphans++;
 					unset( $this->locks[$lock] );
 				}
+				if ( isset( $this->shares[$c] ) ) {
+					foreach ( $this->shares[$c] as $lock => $unimportant ) {
+						unset( $this->shares[$c][$lock] );
+						if ( isset( $this->locks[$lock] ) ) {
+							$this->stat_orphans++;
+							$this->locks[$lock]--;
+							if ( $this->locks[$lock] < 1 )
+								unset( $this->locks[$lock] );
+						}
+					}
+					unset( $this->shares[$c] );
+				}
 				continue;
-
 			}
 			
 			$cmd = $d{0};
-			$hash = md5( substr( $d, 1 ) );
 			$this->stat_commands++;
 			switch ( $cmd ) {
+				case 's': // work on a shared lock
+					$newcmd = $d{1};
+					$hash = 's:' . md5( substr( $d, 2 ) );
+					switch ( $newcmd ) {
+						case 'g':
+							$this->sgs++;
+							if ( !isset( $this->shares[$c] ) )
+								$this->shares[$c] = array();
+							if ( !isset( $this->locks[$hash] ) )
+								$this->locks[$hash] = 0;
+							if ( !isset($this->shares[$c][$hash]) ) {
+								$this->shares[$c][$hash] = true;
+								$this->locks[$hash]++;
+							}
+							socket_write( $c, "1 Got Lock\r\n" );
+							break;
+						case 'r':
+							$this->srs++;
+							if ( !isset( $this->shares[$c] ) || !isset( $this->shares[$c][$hash] ) ) {
+								socket_write( $c, "0 Cannot Release Lock\r\n" );
+								break;
+							}
+							unset( $this->shares[$c][$hash] );
+							if ( isset( $this->locks[$hash] ) ) {
+								if ( $this->locks[$hash] )
+									$this->locks[$hash]--;
+								if ( $this->locks[$hash] < 1 )
+									unset( $this->locks[$hash] );
+							}
+							socket_write( $c, "1 Released Lock\r\n" );
+							break;
+						case 'i':
+							$this->sis++;
+							if ( isset( $this->locks[$hash] ) && $this->locks[$hash] > 0 )
+								socket_write( $c, "{$this->locks[$hash]} Locked\r\n" );
+							else
+								socket_write( $c, "0 Not Locked\r\n" );
+							break;
+					}
+					break;
 				case 'g': // get a lock
+					$hash = md5( substr( $d, 1 ) );
 					$this->gs++;
 					if ( isset( $this->locks[$hash] ) ) {
 						socket_write( $c, "0 Cannot Get Lock\r\n" );
@@ -186,6 +241,7 @@ class openlockd {
 					socket_write( $c, "1 Got Lock\r\n" );
 					break;
 				case 'r': // release lock
+					$hash = md5( substr( $d, 1 ) );
 					$this->rs++;
 					if ( isset( $this->locks[$hash] ) && $this->locks[$hash] == $c ) {
 						unset( $this->locks[$hash] );
@@ -195,6 +251,7 @@ class openlockd {
 					socket_write( $c, "0 Cannot Release Lock\r\n" );
 					break;
 				case 'i': // inspect lock
+					$hash = md5( substr( $d, 1 ) );
 					$this->is++;
 					if ( isset( $this->locks[$hash] ) )
 						socket_write( $c, "1 Locked\r\n" );
@@ -204,15 +261,24 @@ class openlockd {
 				case 'q': // get system stats
 					$this->qs++;
 					socket_write( $c, print_r( array(
-						'conns' => count( $this->connections ),
-						'locks' => count( $this->locks ),
-						'orphans' => $this->stat_orphans,
-						'commands' => $this->stat_commands,
-						'command_g' => $this->gs,
-						'command_r' => $this->rs,
-						'command_i' => $this->is,
-						'command_q' => $this->qs,
+						'conns'      => count( $this->connections ),
+						'locks'      => count( $this->locks ),
+						'orphans'    => $this->stat_orphans,
+						'commands'   => $this->stat_commands,
+						'command_g'  => $this->gs,
+						'command_r'  => $this->rs,
+						'command_i'  => $this->is,
+						'command_sg' => $this->sgs,
+						'command_sr' => $this->srs,
+						'command_si' => $this->sis,
+						'command_q'  => $this->qs,
 					), true ) );
+					if ( $d = 'q full' ) {
+						socket_write( $c, print_r( array(
+							'locks'  => $this->locks,
+							'shares' => $this->shares,
+						), true ) );
+					}
 					break;
 			}
 				
